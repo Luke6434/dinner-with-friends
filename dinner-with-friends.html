@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dinner With Friends</title>
+<style>
+  :root{
+    --bg:#1a1410; --cloth:#2b211a; --candle:#f0c14b; --glow:#ffd97a;
+    --wine:#7a2230; --cream:#f5ecdd; --muted:#b39d83; --plate:#0f0b08; --edge:#3a2c22;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh; font-family:Georgia,'Times New Roman',serif; color:var(--cream);
+    background:radial-gradient(ellipse at 50% 0%,#2a1f16 0%,var(--bg) 60%);
+    padding-bottom:60px;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:0 18px}
+  .head{text-align:center;padding:40px 16px 6px}
+  .flame{font-size:40px;display:inline-block;filter:drop-shadow(0 0 18px var(--glow));animation:flicker 2.2s infinite}
+  @keyframes flicker{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(1.04)}}
+  h1{font-size:clamp(30px,6vw,52px);margin:6px 0 2px;font-weight:400;letter-spacing:.06em}
+  .sub{color:var(--muted);margin:0;font-style:italic;letter-spacing:.04em}
+  .count{text-align:center;margin:18px 0 14px;color:var(--candle);font-size:14px;letter-spacing:.15em;text-transform:uppercase}
+  .seats{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+  .chip{cursor:pointer;background:var(--wine);color:var(--cream);padding:6px 14px;border-radius:20px;font-size:14px;border:none;font-family:inherit}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .card{text-align:left;cursor:pointer;background:var(--cloth);border:1px solid var(--edge);border-radius:12px;padding:14px;color:var(--cream);font-family:inherit;transition:transform .15s,background .2s,box-shadow .2s}
+  .card:hover{transform:translateY(-3px)}
+  .card.on{background:var(--wine);border-color:var(--candle);box-shadow:0 0 16px rgba(240,193,75,.25)}
+  .card.full{opacity:.4;cursor:not-allowed}
+  .card .em{font-size:26px;margin-bottom:4px}
+  .card .nm{font-weight:700;font-size:15px;line-height:1.2}
+  .card .tg{color:var(--muted);font-size:12px;font-style:italic}
+  .center{text-align:center}
+  .go{background:var(--candle);color:#231a10;border:none;border-radius:30px;padding:15px 40px;font-size:18px;font-weight:700;letter-spacing:.04em;cursor:pointer;font-family:inherit;box-shadow:0 0 28px rgba(240,193,75,.35);margin-top:30px}
+  .go:disabled{background:var(--edge);color:var(--muted);box-shadow:none;cursor:not-allowed}
+  .hint{color:var(--muted);font-size:13px;margin-top:10px}
+  .placecards{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:16px 0 18px}
+  .pc{font-size:13px;color:var(--candle);border:1px solid var(--edge);border-radius:14px;padding:4px 11px}
+  .transcript{background:var(--cloth);border:1px solid var(--edge);border-radius:16px;padding:24px 22px;max-height:52vh;overflow-y:auto;line-height:1.55;font-size:16px}
+  .scene{text-align:center;color:var(--candle);font-style:italic;margin:0 0 18px;font-size:14px;letter-spacing:.03em}
+  .cue{text-align:center;color:var(--muted);font-size:13px;margin:8px 0 14px}
+  .line{margin:0 0 14px}
+  .who{color:var(--candle);font-weight:700;letter-spacing:.02em}
+  .says{color:var(--cream)}
+  .dir{color:var(--muted);font-style:italic}
+  .fade{animation:fadein .45s ease both}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .controls{margin-top:18px}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .nudge{background:var(--cloth);color:var(--cream);border:1px solid var(--candle);border-radius:20px;padding:9px 16px;font-size:14px;cursor:pointer;font-family:inherit}
+  .nudge:active{background:var(--wine)}
+  .reset{background:transparent;color:var(--muted);border:none;text-decoration:underline;cursor:pointer;font-family:inherit;font-size:14px;margin-top:20px}
+  button:focus-visible,.card:focus-visible{outline:2px solid var(--candle);outline-offset:3px}
+  @media (prefers-reduced-motion:reduce){.flame,.fade{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="head">
+  <div class="flame">🕯️</div>
+  <h1>Dinner With Friends</h1>
+  <p class="sub">Set the table. Choose your company. See what happens.</p>
+</div>
+<div class="wrap" id="app"></div>
+
+<script>
+// ── Guest pool. Each carries voice fragments used to assemble dialogue. ──
+const GUESTS = [
+  {id:"einstein", name:"Albert Einstein", tag:"physicist", emoji:"🧠",
+    quirk:"absent-mindedly stirring his coffee with a fork",
+    lines:["You know, time itself bends a little at a good dinner — the dull hours race, the joyful ones linger.",
+           "I never memorize what I can look up. The wine list, for instance, I leave to the universe.",
+           "Imagination is more important than the menu. But the menu is also quite important tonight.",
+           "I have no special talent. I am only passionately curious about that dessert."],
+    react:{argue:"Gentlemen, gentlemen — energy is conserved, but tempers needn't be.",
+           wine:"Curious. One glass and the equations grow friendlier.",
+           silence:"Ah, silence. Even the stars keep their distance from one another.",
+           toast:"To curiosity — the only thing worth being drunk on."}},
+  {id:"frida", name:"Frida Kahlo", tag:"painter", emoji:"🎨",
+    quirk:"painting the tablecloth with a fingertip dipped in wine",
+    lines:["I paint my own reality. Tonight my reality includes far too little tequila.",
+           "Feet, what do I need them for, if I have wings to fly to the next course?",
+           "I am my own muse, the subject I know best — and the hungriest one at this table.",
+           "Pain, love, the table — I take them all and put them on the canvas."],
+    react:{argue:"Good. A table with no argument is a painting with no color.",
+           wine:"Now the evening has the right hue.",
+           silence:"Let them be quiet. I'll listen to the candle instead.",
+           toast:"To the broken and the beautiful — same thing, really."}},
+  {id:"marley", name:"Bob Marley", tag:"musician", emoji:"🎵",
+    quirk:"tapping a rhythm on the table edge",
+    lines:["One good thing about food, when it hits you, you feel no pain.",
+           "Don't worry about the bill — every little thing gonna be alright.",
+           "Me only have one ambition tonight: to see this whole table eat as one.",
+           "The greatness of a meal is in the sharing, not the spending."],
+    react:{argue:"Easy now, easy. Who feels it knows it — let love settle this.",
+           wine:"Now the riddim of the room is right.",
+           silence:"Silence is its own music, you know. Let it play.",
+           toast:"To one love, and one very long dinner."}},
+  {id:"cleopatra", name:"Cleopatra", tag:"pharaoh", emoji:"👑",
+    quirk:"summoning the waiter with a single raised finger",
+    lines:["I did not come to dine. I came to be dined for.",
+           "In Egypt we dissolved pearls in wine. Here I suppose the house red will do.",
+           "I will not be ignored at my own table — and every table is mine.",
+           "Bring the finest of everything. We settle accounts later, or never."],
+    react:{argue:"Silence. The pharaoh decides who is right, and it is whoever I like.",
+           wine:"More. A queen's cup is never half-empty.",
+           silence:"Good. Let them wait on my word.",
+           toast:"To empires — and to those of us who outlast them at dinner."}},
+  {id:"jimjames", name:"Jim James", tag:"musician", emoji:"🎤",
+    quirk:"humming softly between bites",
+    lines:["Feels like the whole room's vibrating on the same frequency tonight, doesn't it?",
+           "I'm just here for the harmony — of the people, and of the side dishes.",
+           "There's a golden hour to a dinner, and I think we're in it right now.",
+           "Everything is dreamlike when the candles are low and the bread is warm."],
+    react:{argue:"Whoa, let's bring it back down to a major key, friends.",
+           wine:"The reverb on this evening just got a little wider.",
+           silence:"I kinda love this. The quiet's got its own song.",
+           toast:"To the frequency we're all tuned to right now."}},
+  {id:"picasso", name:"Pablo Picasso", tag:"painter", emoji:"🖌️",
+    quirk:"rearranging the cutlery into a small sculpture",
+    lines:["Everything you can imagine is real — including a second helping.",
+           "I do not seek the perfect dish. I find it, then I deconstruct it.",
+           "Good taste is the enemy of creativity. So I will order the strangest thing here.",
+           "It took me a lifetime to eat like a child again — with my hands, with joy."],
+    react:{argue:"Yes! Break it apart! From the pieces we make something new.",
+           wine:"Now I see the table in four dimensions.",
+           silence:"Silence is a blank canvas. Someone, ruin it.",
+           toast:"To destruction — every act of creation begins with it."}},
+  {id:"angelou", name:"Maya Angelou", tag:"poet", emoji:"📖",
+    quirk:"folding her hands and listening before she speaks",
+    lines:["People will forget what you served, but never how you made them feel at your table.",
+           "A meal shared in honesty is worth more than a feast eaten in fear.",
+           "I've learned that a good gathering, like a good rain, is a kind of mercy.",
+           "Words and bread — give a person enough of both and you've given them everything."],
+    react:{argue:"Now, now. We are smart enough to disagree and still pass the salt.",
+           wine:"Let the warmth loosen the tongue, but keep the heart kind.",
+           silence:"There is a grace in a quiet table. Let it breathe.",
+           toast:"To the courage it takes to simply sit together."}},
+  {id:"bourdain", name:"Anthony Bourdain", tag:"chef", emoji:"🔪",
+    quirk:"eyeing everyone's plate to see who ordered best",
+    lines:["The body is not a temple, it's an amusement park. Enjoy the ride and the appetizers.",
+           "Your body language at the table tells me everything. You — you're a sharer. I like you.",
+           "Skills can be taught. Character you bring to the table raw.",
+           "The best meals are accidents. So is the best company, frankly."],
+    react:{argue:"Good. The best conversations happen when somebody finally says the real thing.",
+           wine:"Now we're talking. This is when the truth comes out.",
+           silence:"Eat. Nobody fights on a full mouth.",
+           toast:"To the meal that ruins you for all the others."}},
+  {id:"dolly", name:"Dolly Parton", tag:"musician", emoji:"🪕",
+    quirk:"complimenting everyone at the table in turn",
+    lines:["It costs nothing to be kind and pass the biscuits, so I'll do both.",
+           "Find out who you are and do it on purpose — mine's eatin' and singin'.",
+           "I'm not gonna limit myself just because people won't accept a third dessert.",
+           "If you want the rainbow, honey, you gotta put up with a little dinner drama."],
+    react:{argue:"Now y'all hush — we can fuss after pie, not before.",
+           wine:"Well now the party's startin' to sparkle.",
+           silence:"That's alright, sugar. Some of the best company's quiet company.",
+           toast:"To good friends and second helpings, bless 'em all."}},
+  {id:"sagan", name:"Carl Sagan", tag:"astronomer", emoji:"🔭",
+    quirk:"gazing upward as if the ceiling were the night sky",
+    lines:["We are made of star-stuff, and tonight, apparently, of bread and butter too.",
+           "The apple pie, to be made from scratch, would first require us to invent the universe.",
+           "Somewhere, something incredible is waiting to be eaten.",
+           "For small creatures such as we, the vastness is bearable only through dinner."],
+    react:{argue:"Extraordinary claims require extraordinary evidence — and another bottle.",
+           wine:"Billions and billions of reasons to pour another.",
+           silence:"In the great cosmic silence, this table is a small warm light.",
+           toast:"To the cosmos — and the brief, lucky meal we share in it."}},
+  {id:"bowie", name:"David Bowie", tag:"musician", emoji:"⚡",
+    quirk:"observing the table as if it were a stage set",
+    lines:["I don't know where I'm going from here, but I promise it won't be a boring entrée.",
+           "Tonight I'm the chameleon — I'll match whatever flavor this table becomes.",
+           "Turn and face the strange... appetizers. Go on, try one.",
+           "We could be heroes, just for one dinner."],
+    react:{argue:"Oh, lovely — drama. The evening's found its third act.",
+           wine:"Ground control to the sommelier: more, please.",
+           silence:"Mm. Even the pauses should be styled. This one's rather good.",
+           toast:"To being whoever we like, for one night only."}},
+  {id:"juliachild", name:"Julia Child", tag:"chef", emoji:"🥘",
+    quirk:"loudly approving of every dish that passes",
+    lines:["The only real stumbling block at dinner is fear of a second portion. Have courage!",
+           "A party without butter is, well, frankly a tragedy.",
+           "Find something you're passionate about and stay wildly hungry about it.",
+           "If you drop the roast on the floor — well, who's to know? Pick it up!"],
+    react:{argue:"Oh, let them squabble — adds salt to the whole affair!",
+           wine:"Bon appétit! And do keep it coming.",
+           silence:"Goodness, eat something, all of you. Silence is for the kitchen.",
+           toast:"To the people who eat with their whole heart!"}},
+];
+
+const SCENARIOS = [
+  "the appetizers arrive and one order is clearly wrong",
+  "a debate breaks out over who should pay the bill",
+  "the waiter recommends the very expensive tasting menu",
+  "the wine list is passed around the table",
+  "the lights flicker as a thunderstorm rolls in outside",
+  "the bread basket arrives and there's one piece too few",
+  "a long, awkward silence settles over the table",
+  "the dessert cart rolls up, glittering",
+];
+
+// ── State ──
+let selected = [];
+const app = document.getElementById("app");
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+
+// ── INVITE SCREEN ──
+function renderInvite(){
+  app.innerHTML = "";
+  const count = document.createElement("div");
+  count.className="count";
+  count.textContent = `${selected.length} of 5 seats filled`;
+  app.appendChild(count);
+
+  if(selected.length){
+    const seats=document.createElement("div"); seats.className="seats";
+    selected.forEach(g=>{
+      const c=document.createElement("button"); c.className="chip";
+      c.innerHTML=`${g.emoji} ${g.name} ✕`;
+      c.onclick=()=>{toggle(g);};
+      seats.appendChild(c);
+    });
+    app.appendChild(seats);
+  }
+
+  const grid=document.createElement("div"); grid.className="grid";
+  GUESTS.forEach(g=>{
+    const on=selected.find(s=>s.id===g.id);
+    const full=selected.length>=5 && !on;
+    const card=document.createElement("button");
+    card.className="card"+(on?" on":"")+(full?" full":"");
+    card.disabled=full;
+    card.innerHTML=`<div class="em">${g.emoji}</div><div class="nm">${g.name}</div><div class="tg">${g.tag}</div>`;
+    card.onclick=()=>toggle(g);
+    grid.appendChild(card);
+  });
+  app.appendChild(grid);
+
+  const wrap=document.createElement("div"); wrap.className="center";
+  const go=document.createElement("button"); go.className="go";
+  go.textContent="Seat everyone & pour the wine";
+  go.disabled=selected.length<2;
+  go.onclick=startDinner;
+  wrap.appendChild(go);
+  if(selected.length<2){
+    const h=document.createElement("p"); h.className="hint";
+    h.textContent="Invite at least two guests to begin.";
+    wrap.appendChild(h);
+  }
+  app.appendChild(wrap);
+}
+
+function toggle(g){
+  const i=selected.findIndex(s=>s.id===g.id);
+  if(i>=0) selected.splice(i,1);
+  else if(selected.length<5) selected.push(g);
+  renderInvite();
+}
+
+// ── DIALOGUE GENERATION (combinatorial, no API) ──
+function makeExchange(mode){
+  // mode: 'open' | 'continue' | 'argue' | 'wine' | 'silence' | 'toast' | topic string
+  const order = shuffle(selected);
+  const out = [];
+  const n = Math.min(order.length, 2 + Math.floor(Math.random()*3)); // 2-4 speakers
+  for(let i=0;i<n;i++){
+    const g = order[i];
+    let say;
+    if(mode==="argue"||mode==="wine"||mode==="silence"||mode==="toast"){
+      say = g.react[mode] || pick(g.lines);
+    } else if(typeof mode==="string" && mode.startsWith("topic:")){
+      const t = mode.slice(6);
+      say = topicLine(g, t);
+    } else {
+      say = pick(g.lines);
+    }
+    // occasional stage direction
+    const dir = Math.random()<0.4 ? ` (${g.quirk})` : "";
+    out.push({name:g.name, emoji:g.emoji, say, dir});
+  }
+  return out;
+}
+
+function topicLine(g, t){
+  const frames = [
+    `${t}? Now there's a subject worth the whole evening.`,
+    `Ah, ${t}. Let me tell you what I really think about that.`,
+    `${t} — funny you should raise it, I have opinions.`,
+    `When it comes to ${t}, I've never been one to stay quiet.`,
+  ];
+  // blend a character line with the topic frame
+  return Math.random()<0.5 ? pick(frames) : `${pick(frames)} ${pick(g.lines)}`;
+}
+
+// ── SEATED SCREEN ──
+let transcriptEl;
+function startDinner(){
+  app.innerHTML="";
+  // place cards
+  const pcs=document.createElement("div"); pcs.className="placecards";
+  selected.forEach(g=>{
+    const s=document.createElement("span"); s.className="pc";
+    s.textContent=`${g.emoji} ${g.name.split(" ")[0]}`;
+    pcs.appendChild(s);
+  });
+  app.appendChild(pcs);
+
+  transcriptEl=document.createElement("div"); transcriptEl.className="transcript";
+  app.appendChild(transcriptEl);
+
+  const scenario = pick(SCENARIOS);
+  addScene(`The table is set. ${scenario.charAt(0).toUpperCase()+scenario.slice(1)}.`);
+  addDialogue(makeExchange("open"));
+
+  // controls
+  const controls=document.createElement("div"); controls.className="controls";
+  const row=document.createElement("div"); row.className="btnrow";
+  const btns=[
+    ["Keep it going","continue"],
+    ["Start an argument","argue"],
+    ["Pour more wine","wine"],
+    ["Awkward silence","silence"],
+    ["Make a toast","toast"],
+  ];
+  btns.forEach(([label,mode])=>{
+    const b=document.createElement("button"); b.className="nudge"; b.textContent=label;
+    b.onclick=()=>{ addCue(label); addDialogue(makeExchange(mode)); };
+    row.appendChild(b);
+  });
+  controls.appendChild(row);
+
+  // custom topic
+  const trow=document.createElement("div"); trow.className="btnrow"; trow.style.marginTop="12px";
+  const input=document.createElement("input");
+  input.placeholder="Raise a topic at the table…";
+  input.style.cssText="flex:1 1 240px;background:var(--plate);border:1px solid var(--edge);border-radius:20px;padding:10px 16px;color:var(--cream);font-family:inherit;font-size:14px";
+  const raise=document.createElement("button"); raise.className="nudge";
+  raise.style.cssText+=";background:var(--candle);color:#231a10;border:none;font-weight:700";
+  raise.textContent="Raise it";
+  const doRaise=()=>{const t=input.value.trim(); if(!t)return; addCue(`Topic: ${t}`); addDialogue(makeExchange("topic:"+t)); input.value="";};
+  raise.onclick=doRaise;
+  input.addEventListener("keydown",e=>{if(e.key==="Enter")doRaise();});
+  trow.appendChild(input); trow.appendChild(raise);
+  controls.appendChild(trow);
+
+  const rc=document.createElement("div"); rc.className="center";
+  const reset=document.createElement("button"); reset.className="reset";
+  reset.textContent="End the evening & invite new guests";
+  reset.onclick=()=>{renderInvite();};
+  rc.appendChild(reset);
+  controls.appendChild(rc);
+
+  app.appendChild(controls);
+}
+
+function addScene(t){
+  const p=document.createElement("p"); p.className="scene fade";
+  p.textContent=`✦ ${t} ✦`;
+  transcriptEl.appendChild(p); scrollDown();
+}
+function addCue(t){
+  const p=document.createElement("p"); p.className="cue fade";
+  p.textContent=`— ${t} —`;
+  transcriptEl.appendChild(p); scrollDown();
+}
+function addDialogue(arr){
+  arr.forEach(({name,emoji,say,dir})=>{
+    const p=document.createElement("p"); p.className="line fade";
+    p.innerHTML=`<span class="who">${emoji} ${name}</span><span class="says"> — ${say}</span>${dir?`<span class="dir">${dir}</span>`:""}`;
+    transcriptEl.appendChild(p);
+  });
+  scrollDown();
+}
+function scrollDown(){ transcriptEl.scrollTop=transcriptEl.scrollHeight; }
+
+renderInvite();
+</script>
+</body>
+</html>
